@@ -44,15 +44,15 @@ int initConditionnement(Lot* premierLot) {
 			(FUNCPTR) traitementPalette, (int) fileConvoyage,
 			(int) semCapteurPalette, (int) semEtatEmb,
 			(int) semCompteurPalette, 0, 0, 0, 0, 0, 0);
-	
+
 	wdReparation = wdCreate();
-	
+
 	return OK;
 }
 
 int arretConditionnement() {
 	wdDelete(wdReparation);
-	
+
 	taskDelete(tidTraitementPalette);
 	taskDelete(tidTraitementCarton);
 
@@ -64,60 +64,64 @@ int arretConditionnement() {
 	semDelete(semCapteurPalette);
 	semDelete(semEtatImp);
 	semDelete(semCapteurCarton);
-	
+
 	return OK;
 }
 
 int pauseConditionnement() {
+	int ret1;
+	int ret2;
 	semTake(semClapet, WAIT_FOREVER);
 	clapet = FERME;
 	semGive(semClapet);
-	
+
 	message(CLAPET_FERME, NULL, NULL, NULL);
 
-	taskSuspend(tidTraitementCarton);
-	taskSuspend(tidTraitementPalette);
-	
+	// On suspend la tache en erreur :
+	ret1 = taskSuspend(0);
+
 	return OK;
 }
 
 int repriseConditionnement() {
-	taskResume(tidTraitementPalette);
+
+	// On reprends l'exécution des deux tâches :
 	taskResume(tidTraitementCarton);
+	taskResume(tidTraitementPalette);
 
 	semTake(semClapet, WAIT_FOREVER);
 	clapet = OUVERT;
 	semGive(semClapet);
-	
+
 	message(CLAPET_OUVERT, NULL, NULL, NULL);
-	
+
 	return OK;
 }
 
 // Watchdog
 void surveilReparation(CODE_ERREUR codeErreur) {
-	
+
 	BOOL erreurReparee;
 	int val;
-	
-	switch(codeErreur) {
+
+	switch (codeErreur) {
 	case ABSENCE_CARTON:
 		val = capteurCarton;
 		break;
 	case PIECES_DEFECTUEUSES:
-		val = OK;	// On peut relancer le conditionnement dans tous les cas
+		val = OK; // On peut relancer le conditionnement dans tous les cas
 		break;
 	case PANNE_IMPRIMANTE:
 		val = etatImp;
 		break;
 	case FILE_CARTONS_PLEINE:
-		val = OK;	// On peut relancer le conditionnement dans tous les cas
+		val = OK; // On peut relancer le conditionnement dans tous les cas
 		break;
 	case ABSENCE_PALETTE:
 		val = capteurPalette;
 		break;
 	case PIECES_TIMEOUT:
-		val = OK;	// On peut relancer le conditionnement dans tous les cas
+		val = OK; // On peut relancer le conditionnement dans tous les cas
 		break;
 	case ERREUR_FILMAGE:
 		val = etatEmb;
@@ -125,14 +129,16 @@ void surveilReparation(CODE_ERREUR codeErreur) {
 	default:
 		val = OK;
 	}
-	
-	if(val == OK) {
+
+	if (val == OK) {
 		message(ERREUR_REPAREE, codeErreur, NULL, NULL);
 	} else {
-		wdStart(wdReparation, sysClkRateGet()*3, (FUNCPTR) surveilReparation, codeErreur);
+		wdStart(wdReparation, sysClkRateGet() * 3, (FUNCPTR) surveilReparation,
+				codeErreur);
 	}
 }
 
 void surveillerReparation(CODE_ERREUR codeErreur) {
-	wdStart(wdReparation, sysClkRateGet()*3, (FUNCPTR) surveilReparation, codeErreur);
+	wdStart(wdReparation, sysClkRateGet() * 3, (FUNCPTR) surveilReparation,
+			codeErreur);
 }
